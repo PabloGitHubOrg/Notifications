@@ -3,13 +3,10 @@ from flask import Flask, request
 from hashlib import sha1
 
 import hmac
-import logging
 import os
 import requests
 
 app = Flask("webhooks-github")
-logger = logging.getLogger("webhooks-github")
-logger.setLevel(logging.INFO)
 
 SECRET_TOKEN = os.environ["SECRET_TOKEN"]
 API_TOKEN = os.environ["API_TOKEN"]
@@ -36,17 +33,17 @@ def create_issue(repo_name):
 
     https://developer.github.com/v3/issues/#create-an-issue
     """
-    
+
     headers = {"Authorization": "token " + API_TOKEN}
     payload = {
         "title": "A repository has been deleted",
         "body": "This is an automated issue to notify that the repository " + repo_name + " has just been deleted\n\n/cc @" + NOTIFY_USER,
         "labels": ["webhook"]
     }
-    logger.info("Creating issue")
+    app.logger.info("Creating issue")
     req = requests.post(ISSUES_URL, json=payload, headers=headers)
     if req.status_code != 201:
-        logger.error("Error creating issue")
+        app.logger.error("Error creating issue")
         return False
     return True
 
@@ -54,17 +51,16 @@ def create_issue(repo_name):
 @app.route("/postreceive", methods=['POST'])
 def postreceive():
     payload = request.get_json()
-    headers = request.headers
     if not verify_signature():
-        logger.error("Signature does not match")
+        app.logger.error("Signature does not match")
         return "Signature does not match", 400
 
     action = payload["action"]
     if action != "deleted":
-        logger.info("Ignoring action: " + action)
+        app.logger.info("Ignoring action: " + action)
         return "Success", 200
 
-    logger.info("Deleted repository detected!")
+    app.logger.info("Deleted repository detected!")
 
     repository = payload["repository"]["full_name"]
     result = create_issue(repository)
